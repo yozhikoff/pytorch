@@ -1234,6 +1234,60 @@ class TestQuantizeScriptPTSQOps(QuantizationTestCase):
         return models[False]
 
     @skipIfNoFBGEMM
+    def test_linear(self):
+        class ModuleLinear(torch.nn.Module):
+            def __init__(self, has_relu=False, f_relu=False):
+                super(ModuleLinear, self).__init__()
+                self.linear = torch.nn.Linear(30, 4).float()
+                if has_relu:
+                    if f_relu:
+                        self.relu = F.relu
+                    else:
+                        self.relu = torch.nn.ReLU()
+                else:
+                    self.relu = torch.nn.Identity()
+            def forward(self, x):
+                return self.relu(self.linear(x))
+
+        class FuncLinear(torch.nn.Module):
+            def __init__(self, has_relu=False, f_relu=False):
+                super(FuncLinear, self).__init__()
+                self.w = torch.randn(4, 30)
+                self.b = torch.randn(4)
+                if has_relu:
+                    if f_relu:
+                        self.relu = F.relu
+                    else:
+                        self.relu = torch.nn.ReLU()
+                else:
+                    self.relu = torch.nn.Identity()
+            def forward(self, x):
+                return self.relu(F.linear(x, self.w, self.b))
+
+        data = [(torch.rand((1, 30), dtype=torch.float),
+                 torch.randint(0, 1, (1,), dtype=torch.long)) for _ in range(2)]
+
+        for model in [ModuleLinear(has_relu=False),
+                      FuncLinear(has_relu=False)]:
+            model = self._test_op_impl(model, data, "quantized::linear")
+            FileCheck() \
+                .check_count("aten::quantize_per_tensor", 1, exactly=True) \
+                .run(model.graph)
+            FileCheck().check_not("quantized::linear_prepack") \
+                       .run(model.graph)
+
+        for f_relu in [True, False]:
+            for model in [ModuleLinear(has_relu=True, f_relu=f_relu),
+                          FuncLinear(has_relu=True, f_relu=f_relu)]:
+                model = self._test_op_impl(model, data,
+                                           "quantized::linear_relu")
+                checker = FileCheck().check_not("aten::linear") \
+                                     .check_not("aten::relu") \
+                                     .check_not("quantized::linear(") \
+                                     .check_not("quantized::relu(") \
+                                     .run(model.graph)
+
+    @skipIfNoFBGEMM
     def test_quantized_conv(self):
         conv_module = {1 : torch.nn.Conv1d, 2 : torch.nn.Conv2d, 3 : torch.nn.Conv3d}
 

@@ -562,8 +562,6 @@ Tensor compute_T18(Tensor& A) {
     }
   };
 
-
-
   auto I = at::eye(A.size(-1), A.options()).expand_as(A);
   auto A2 = at::matmul(A, A);
   auto A3 = at::matmul(A2, A);

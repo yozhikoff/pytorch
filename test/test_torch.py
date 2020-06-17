@@ -7381,7 +7381,7 @@ class TestTorchDeviceType(TestCase):
         def run_test(*n):
             if len(n) <= 2:
                 # symmetric matrix test
-                q = torch.randn(n) / n[-1]
+                q = torch.randn(n, dtype=dtype, device=device) / n[-1]
                 x = q @ q.t()
 
                 mexp = torch.matrix_exp(x)
@@ -7392,9 +7392,9 @@ class TestTorchDeviceType(TestCase):
                 self.assertEqual(mexp, mexp_svd, atol=1e-5, rtol=0)
 
                 # generic square matrix case
-                q = torch.randn(n)
+                q = torch.randn(n, dtype=dtype, device=device)
                 qinv = torch.inverse(q)
-                d = torch.randn(n[-1]).abs()
+                d = torch.randn(n[-1], dtype=dtype, device=device).abs()
                 x = q @ torch.diag(d) @ qinv
 
                 mexp = torch.matrix_exp(x)
@@ -7405,7 +7405,7 @@ class TestTorchDeviceType(TestCase):
                 # batched
 
                 # symmetric matrix case
-                q = torch.randn(n) / n[-1]
+                q = torch.randn(n, dtype=dtype, device=device) / n[-1]
                 x = torch.bmm(q, q.transpose(-1, -2))
 
                 mexp = torch.matrix_exp(x)
@@ -7417,9 +7417,9 @@ class TestTorchDeviceType(TestCase):
                 self.assertEqual(mexp, mexp_svd, atol=1e-5, rtol=0)
 
                 # generic square matrix case
-                q = torch.randn(n)
+                q = torch.randn(n, dtype=dtype, device=device)
                 qinv = torch.inverse(q)
-                d = torch.randn(n[:-1]).abs()
+                d = torch.randn(n[:-1], dtype=dtype, device=device).abs()
                 x = torch.bmm(q, torch.bmm(torch.diag_embed(d), qinv))
 
                 mexp = torch.matrix_exp(x)

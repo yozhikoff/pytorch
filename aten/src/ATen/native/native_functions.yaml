@@ -1715,6 +1715,10 @@
   use_c10_dispatcher: full
   variants: function, method
 
+- func: matrix_exp(Tensor self) -> Tensor
+  use_c10_dispatcher: full
+  variants: function, method
+
 - func: max.dim(Tensor self, int dim, bool keepdim=False) -> (Tensor values, Tensor indices)
   use_c10_dispatcher: full
   variants: function, method

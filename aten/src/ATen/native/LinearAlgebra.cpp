@@ -515,6 +515,107 @@ Tensor& matmul_out(Tensor &result, const Tensor & tensor1, const Tensor & tensor
   return result;
 }
 
+// helper methods for matrix_exp
+namespace {
+
+Tensor operator_1_norm(const Tensor& tensor) {
+  return std::get<0>(tensor.abs().sum(-2).max(-1));
+}
+
+template <typename scalar_t>
+Tensor compute_T18(Tensor& A) {
+  constexpr scalar_t b[][5] = {
+    {
+      0.,
+      -1.00365581030144618291e-01,
+      -8.02924648241156932449e-03,
+      -8.92138498045729985177e-04,
+      0.
+    },
+    {
+      0.,
+      3.97849749499645077844e-01,
+      1.36783778460411720168e+00,
+      4.98289622525382669416e-01,
+      -6.37898194594723280150e-04
+    },
+    {
+      -1.09676396052962061844e+01,
+      1.68015813878906206114e+00,
+      5.71779846478865511061e-02,
+      -6.98210122488052056106e-03,
+      3.34975017086070470649e-05
+    },
+    {
+      -9.04316832390810593223e-02,
+      -6.76404519071381882256e-02,
+      6.75961301770459654925e-02,
+      2.95552570429315521194e-02,
+      -1.39180257516060693404e-05
+    },
+    {
+      0.,
+      0.,
+      -9.23364619367118555360e-02,
+      -1.69364939002081722752e-02,
+      -1.40086798182036094347e-05
+    }
+  };
+
+
+
+  auto I = at::eye(A.size(-1), A.options()).expand_as(A);
+  auto A2 = at::matmul(A, A);
+  auto A3 = at::matmul(A2, A);
+  auto A6 = at::matmul(A3, A3);
+  std::reference_wrapper<Tensor> As[] = {I, A, A2, A3, A6};
+
+  Tensor Bs[5];
+  for (int i = 0; i < 5; ++i) {
+    Bs[i] = at::zeros(A.sizes(), A.options());
+  }
+
+  for (int i = 0; i < 5; ++i) {
+    for (int j = 0; j < 5; ++j) {
+      Bs[i] += b[i][j] * As[j];
+    }
+  }
+
+  auto A9 = at::matmul(Bs[0], Bs[4]) + Bs[3];
+  auto res = Bs[1] + at::matmul(Bs[2] + A9, A9);
+
+  return res;
+}
+
+};
+
+Tensor matrix_exp(const Tensor& a) {
+  TORCH_CHECK(a.dim() >= 2 && (at::isFloatingType(a.scalar_type()) || at::isComplexType(a.scalar_type())),
+              "matrix_exp(", a.scalar_type(), "{", a.sizes(), "}): expected a tensor "
+              "of floating types with dim at least 2");
+  TORCH_CHECK(a.size(-1) == a.size(-2),
+              "matrix_exp(", a.scalar_type(), "{", a.sizes(), "}): expected a tensor "
+              "of squared matrices");
+
+  auto max_norm = operator_1_norm(a).max().item();
+  if (a.scalar_type() == at::ScalarType::Float) {
+    float norm = max_norm.to<float>();
+    float theta_18 = 3.010066362817634e+00;
+    int s = std::ceil(std::log2(norm / theta_18));
+    int64_t pow2s = std::pow(2, s);
+    auto a_scaled = a / pow2s;
+    return at::matrix_power(compute_T18<float>(a_scaled), pow2s);
+  }
+  else { // if Double
+    double norm = max_norm.to<double>();
+    double theta_18 = 1.090863719290036e+00;
+    int s = std::ceil(std::log2(norm / theta_18));
+    int64_t pow2s = std::pow(2, s);
+    auto a_scaled = a / pow2s;
+    return at::matrix_power(compute_T18<double>(a_scaled), pow2s);
+  }
+}
+
 Tensor matrix_power(const Tensor& a, int64_t n) {
   TORCH_CHECK(a.dim() >= 2 && (at::isFloatingType(a.scalar_type()) || at::isComplexType(a.scalar_type())),
               "matrix_power(", a.scalar_type(), "{", a.sizes(), "}): expected a tensor "

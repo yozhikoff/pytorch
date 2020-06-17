@@ -597,6 +597,11 @@ Tensor matrix_exp(const Tensor& a) {
               "matrix_exp(", a.scalar_type(), "{", a.sizes(), "}): expected a tensor "
               "of squared matrices");
 
+  if ((a.dim() == 0 && a.numel() == 1 /*if scalar*/)
+      || a.size(-1) == 1) {
+    return a.exp();
+  }
+
   // FIXME: the way s is defined can cause underflow. Do something about it.
   auto max_norm = operator_1_norm(a).max().item();
   if (a.scalar_type() == at::ScalarType::Float) {

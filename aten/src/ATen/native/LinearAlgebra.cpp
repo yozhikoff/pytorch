@@ -597,11 +597,12 @@ Tensor matrix_exp(const Tensor& a) {
               "matrix_exp(", a.scalar_type(), "{", a.sizes(), "}): expected a tensor "
               "of squared matrices");
 
+  // FIXME: the way s is defined can cause underflow. Do something about it.
   auto max_norm = operator_1_norm(a).max().item();
   if (a.scalar_type() == at::ScalarType::Float) {
     float norm = max_norm.to<float>();
     float theta_18 = 3.010066362817634e+00;
-    int s = std::ceil(std::log2(norm / theta_18));
+    int s = std::max(static_cast<float>(0.0), std::ceil(std::log2(norm / theta_18)));
     int64_t pow2s = std::pow(2, s);
     auto a_scaled = a / pow2s;
     return at::matrix_power(compute_T18<float>(a_scaled), pow2s);
@@ -609,7 +610,7 @@ Tensor matrix_exp(const Tensor& a) {
   else { // if Double
     double norm = max_norm.to<double>();
     double theta_18 = 1.090863719290036e+00;
-    int s = std::ceil(std::log2(norm / theta_18));
+    int s = std::max(static_cast<double>(0.0), std::ceil(std::log2(norm / theta_18)));
     int64_t pow2s = std::pow(2, s);
     auto a_scaled = a / pow2s;
     return at::matrix_power(compute_T18<double>(a_scaled), pow2s);

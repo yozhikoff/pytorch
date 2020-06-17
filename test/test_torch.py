@@ -7374,6 +7374,71 @@ class TestTorchDeviceType(TestCase):
         M = random_fullrank_matrix_distinct_singular_value(3, 2, 3, dtype=dtype, device=device)
         run_test(M, sign=-1)
 
+    @skipCUDAIfNoMagma
+    @skipCPUIfNoLapack
+    @dtypes(torch.double)
+    def test_matrix_exp(self, device, dtype):
+        def run_test(*n):
+            if len(n) <= 2:
+                # symmetric matrix test
+                q = torch.randn(n) / n[-1]
+                x = q @ q.t()
+
+                mexp = torch.matrix_exp(x)
+
+                u, s, v = torch.svd(x)
+                mexp_svd = u @ torch.diag(s.exp()) @ v.t()
+
+                self.assertEqual(mexp, mexp_svd, atol=1e-5, rtol=0)
+
+                # generic square matrix case
+                q = torch.randn(n)
+                qinv = torch.inverse(q)
+                d = torch.randn(n[-1]).abs()
+                x = q @ torch.diag(d) @ qinv
+
+                mexp = torch.matrix_exp(x)
+                mexp_eig = q @ torch.diag(d.exp()) @ qinv
+
+                self.assertEqual(mexp, mexp_eig, atol=1e-5, rtol=0)
+            else:
+                # batched
+
+                # symmetric matrix case
+                q = torch.randn(n) / n[-1]
+                x = torch.bmm(q, q.transpose(-1, -2))
+
+                mexp = torch.matrix_exp(x)
+
+                u, s, v = torch.svd(x)
+
+                mexp_svd = torch.bmm(u, torch.bmm(torch.diag_embed(s.exp()), v.transpose(-1, -2)))
+
+                self.assertEqual(mexp, mexp_svd, atol=1e-5, rtol=0)
+
+                # generic square matrix case
+                q = torch.randn(n)
+                qinv = torch.inverse(q)
+                d = torch.randn(n[:-1]).abs()
+                x = torch.bmm(q, torch.bmm(torch.diag_embed(d), qinv))
+
+                mexp = torch.matrix_exp(x)
+                mexp_eig = torch.bmm(q, torch.bmm(torch.diag_embed(d.exp()), qinv))
+
+                self.assertEqual(mexp, mexp_eig, atol=1e-5, rtol=0)
+
+        # single matrix
+        run_test(2, 2)
+        run_test(3, 3)
+        run_test(4, 4)
+        run_test(5, 5)
+
+        # small batch of matrices
+        run_test(3, 2, 2)
+        run_test(3, 3, 3)
+        run_test(3, 4, 4)
+        run_test(3, 5, 5)
+
     @dtypes(torch.double)
     def test_chain_matmul(self, device, dtype):
         def product(matrices):

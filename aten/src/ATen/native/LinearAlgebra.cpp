@@ -597,8 +597,7 @@ Tensor matrix_exp(const Tensor& a) {
               "matrix_exp(", a.scalar_type(), "{", a.sizes(), "}): expected a tensor "
               "of squared matrices");
 
-  if ((a.dim() == 0 && a.numel() == 1 /*if scalar*/)
-      || a.size(-1) == 1) {
+  if (a.size(-1) == 1) {
     return a.exp();
   }
 
